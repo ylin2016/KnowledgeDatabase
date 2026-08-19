@@ -1,0 +1,9 @@
+#!/bin/sh
+# Run a project script under the project venv, from anywhere.
+#   ./kdb import_onboarding.py --dry-run
+#   ./kdb db.py
+# Without this, `python src/...` picks up the system interpreter, which has no
+# psycopg installed.
+set -e
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec "$here/venv/bin/python" "$here/src/$@"
