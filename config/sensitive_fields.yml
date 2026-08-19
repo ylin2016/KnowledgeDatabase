@@ -1,0 +1,29 @@
+# Property Onboarding fields whose values are encrypted at rest (listing_secrets)
+# instead of being stored as plaintext in listing_attrs.
+#
+# Matching is case-insensitive on the normalized field label, and the en-dash /
+# hyphen / whitespace variants that appear across template versions are collapsed
+# before comparison (see src/fields.py::normalize_label).
+#
+# Anything NOT listed here lands in listing_attrs as plaintext.
+
+sensitive:
+  # Physical access — door codes, lockboxes, master reset
+  - Maintenance - Access - Guest Access Code
+  - Maintenance - Access - Vendor Access Code
+  - Maintenance - Access - Backup Code
+  - Maintenance - Access - Backup Lockbox Location & Code
+  - Maintenance - Access - Backup of Backup
+  - Maintenance - Access - Master code or info to reset access
+
+  # Network
+  - Maintenance - WiFi - Internet password
+  - Maintenance - WiFi - Internet provider account login
+
+  # Accounts with portal logins embedded in the free text
+  - Maintenance - Smart Home - Security Camera login
+  - Maintenance - Utilities - Electricity Account
+  - Maintenance - Utilities - Gas Account
+  - Maintenance - Utilities - Water/Sewer Account
+  - Maintenance - Utilities - Garbage/Recycling Account
+  - HOA - Login

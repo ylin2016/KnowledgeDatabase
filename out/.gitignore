@@ -1,0 +1,3 @@
+# Import output holds live property data; never commit it.
+*
+!.gitignore
