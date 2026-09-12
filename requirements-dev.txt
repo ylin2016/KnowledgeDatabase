@@ -1,0 +1,6 @@
+# Local pipeline: everything the server needs, plus the workbook import path.
+-r requirements.txt
+pandas>=2.0
+sqlalchemy>=2.0
+openpyxl>=3.1
+PyYAML>=6.0

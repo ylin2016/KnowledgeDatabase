@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "valta-knowledge-db": {
+      "command": "./venv/bin/python",
+      "args": ["src/mcp_server.py"],
+      "env": {
+        "KDB_MCP_DB": "DATABASE_URL",
+        "KDB_MCP_SECRETS": "1"
+      }
+    }
+  }
+}

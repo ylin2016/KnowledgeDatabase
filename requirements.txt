@@ -1,6 +1,8 @@
+# Runtime for the deployed MCP server. The import/parsing pipeline needs more
+# (pandas, openpyxl, sqlalchemy) but none of it runs on the server, and every
+# extra megabyte is serverless cold-start time — so those stay in
+# requirements-dev.txt and out of the deployment.
+mcp>=2.1
 psycopg[binary]>=3.3
 python-dotenv>=1.0
-pandas>=2.0
-sqlalchemy>=2.0
-openpyxl>=3.1
-PyYAML>=6.0
+starlette>=0.40

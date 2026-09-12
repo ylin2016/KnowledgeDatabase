@@ -182,6 +182,44 @@ Fields listed in `config/sensitive_fields.yml` go to **`listing_secrets`**, encr
 
 `.env` is covered by `Claude_projects/.gitignore`; `.env.example` is the tracked template.
 
+## MCP server
+
+Tools are defined once in `src/kdb_tools.py` and served over two transports:
+
+| | |
+|---|---|
+| `src/mcp_server.py` | stdio, local. Wired into the Claude desktop app via `mcpServers` in `~/Library/Application Support/Claude/claude_desktop_config.json`, and into Claude Code here via `.mcp.json`. |
+| `src/http_server.py` | streamable HTTP, remote. The shared Valta connector — per-person tokens, deployed. See `REMOTE_MCP.md`. |
+
+Restarting the app is what picks up a stdio config change; editing the file
+mid-session does nothing.
+
+Neither sandbox can reach Neon — the desktop VM cannot resolve `neon.tech` and
+the cloud container has no route to port 5432 — so anything needing a live query
+has to run on the Mac or on the deployed server. A tool that fails only with a
+DNS or connection error in a sandbox is not broken.
+
+Tools are shaped queries, not table access, because the schema misleads: a caller that treats
+a property as a listing collapses `Seattle 10057`'s Whole/Upper/Lower into one answer, and raw
+table access would drag `listing_secrets` into questions that never asked for a credential.
+
+| Tool | |
+|---|---|
+| `list_properties` / `get_property` | the property → listing structure |
+| `get_listing` | one listing's plaintext fields + the NAMES of its secret fields |
+| `search` | trigram search over labels and values — the usual entry point |
+| `list_secret_fields` | which credentials exist, never their values |
+| `get_secret` | decrypts ONE credential; requires both listing and label |
+| `sql` | a single SELECT/WITH in a read-only transaction |
+
+`get_secret` needs `SECRETS_KEY`, so the server inherits `.env` through `src/db.py` and the
+key never reaches the client. `KDB_MCP_SECRETS=0` leaves that tool unregistered; `KDB_MCP_DB`
+picks the target (default `DATABASE_URL`).
+
+The read-only guard on `sql` is belt and braces — a regex for SELECT/WITH, a rejection of a
+second statement, and `set transaction read only` so a write fails at the server rather than
+on trust.
+
 ## Schema notes
 
 - `listings.role` is `main` or `child`; a partial unique index enforces exactly one `main`
