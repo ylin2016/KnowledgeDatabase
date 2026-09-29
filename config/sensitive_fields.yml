@@ -10,8 +10,16 @@
 sensitive:
   # Physical access — door codes, lockboxes, master reset
   - Maintenance - Access - Guest Access Code
+  # The backup door code. Three template spellings occur; fields._LABEL_ALIASES
+  # folds them all to 'Guest Access Backup Code', which is the name everything is
+  # stored under, so only the canonical label needs listing here:
+  #   'Backup Code'               {Place} {Number} Onboarding Sheets  (96 workbooks)
+  #   'Guest Access Backup Code'  Property Onboarding {Address}
+  #   'Guest Backup Code'         Property Onboarding-Yacinde {Unit}
+  # The aliases stay matched too (is_sensitive checks raw AND canonical), so a
+  # workbook using an old spelling can never fall through to plaintext.
+  - Maintenance - Access - Guest Access Backup Code
   - Maintenance - Access - Vendor Access Code
-  - Maintenance - Access - Backup Code
   - Maintenance - Access - Backup Lockbox Location & Code
   - Maintenance - Access - Backup of Backup
   - Maintenance - Access - Master code or info to reset access

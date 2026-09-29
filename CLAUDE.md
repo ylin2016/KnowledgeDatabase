@@ -172,6 +172,43 @@ logins, security-camera logins.
 Fields listed in `config/sensitive_fields.yml` go to **`listing_secrets`**, encrypted with
 `pgp_sym_encrypt()` under `SECRETS_KEY`. Everything else goes to `listing_attrs` as plaintext.
 
+Template generations spell the same field differently, so one field can fragment into several
+labels — which splits `search` results and makes `get_secret` miss. `fields._LABEL_ALIASES`
+folds the known spellings to one canonical name, applied by `canonical_label()` in
+`_parse_listings`. The backup door code was consolidated this way on 2026-09-27:
+`Backup Code` (96 workbooks) and `Guest Backup Code` (Yacinde) now store as
+**`Maintenance - Access - Guest Access Backup Code`** — 86 rows under one label in both
+projects. Only fold labels that are genuinely the same field: verified first that no workbook
+of the 98 contains more than one of the three spellings, so nothing could be merged away.
+Alias it in `fields.py`, and keep `is_sensitive` checking BOTH the raw and canonical label so
+a workbook using an old spelling can never fall through to plaintext.
+
+Deliberately NOT in `label_key`/`normalize_label`: `discover.py` runs `label_key` over the
+INDEX's column headers, and folding aliases there would reach index parsing.
+
+The source workbooks were then brought in line on 2026-09-27 (`tools/edit_label.py`): all 96
+say `Guest Access Backup Code`, and in the 53 whose archive openpyxl can load, the row moved
+from 45 to 42 so it sits with the other Guest Access fields (41 code / 42 backup / 43 location).
+The other 43 keep it at row 45 — see below. The alias makes both layouts parse identically, so
+this changed nothing downstream: a full `--dry-run` still matched both databases exactly.
+
+**Editing these workbooks: openpyxl is only safe on some of them.**
+`tools/edit_label.py` therefore has two paths, and the rule is that anything touching all 96
+must not require the full reader.
+
+- `rename()` rewrites the one shared string through raw zip surgery, copying every other entry
+  byte-for-byte. It works on all 96 and preserves drawings, data validations and `xl/metadata`.
+  It resolves the label **via the A-column cell's `t="s"` index**, not by text search: the
+  shared-string table often holds duplicate copies of the same label (one file has it at si#69
+  and si#182 with only #182 referenced), so a text match is ambiguous and editing an orphan
+  would report success while changing nothing. It refuses if the `si` is shared with any other
+  cell, which would rename an unrelated cell too.
+- `move_row()` uses openpyxl and so only runs on the 53 loadable files. Its save **drops**
+  `xl/drawings/drawing1-3.xml`, both `worksheets/_rels`, and `xl/metadata` (18 zip entries ->
+  12). Verified safe here only because those drawings are empty 775-byte stubs with zero
+  anchored shapes — check that again before reusing it. Data validations, merged cells and
+  dimensions do survive.
+
 - `SECRETS_KEY` lives in `.env` and is **never** written to the database — a Neon dump alone
   does not expose these values. Do not add it to a table, a migration, or a default. The
   corollary: lose the key and all 1057 encrypted values are gone for good, in both projects,
@@ -230,16 +267,21 @@ on trust.
   over `listing_attrs` would not require moving off Neon.
 - Deleting a property cascades to listings, attrs, and secrets.
 
-## Loaded (2026-08-17)
+## Loaded (2026-09-27)
 
 Full import, both projects, verified identical by row count:
 
 | | |
 |---|---|
-| properties / owners | 67 / 86 |
-| listings | 109 — 61 `main`, 48 `child` |
-| listing_attrs / listing_secrets | 3802 / 1057 |
-| listings with no attrs | 5 |
+| properties / owners | 69 / 89 |
+| listings | 111 |
+| listing_attrs / listing_secrets | 3907 / 1106 |
+| listings with no attrs | 4 |
+
+2026-09-27 added `Bellevue 15746`, `Renton 18823`, re-imported `Sammamish 5124`, refreshed all
+10 `Yacinde` units (access codes filled in since August: secrets 92 -> 114), consolidated the
+backup-code label, and refreshed `Keaau 15-1542` + `Lynnwood 17506`. A full `--dry-run` now
+reproduces these totals exactly, so every property is current against its workbook.
 
 Encryption re-verified against live rows: `listing_secrets.value_enc` reads as pgp bytea
 (`c30d0407…`), decrypts to the door code under `SECRETS_KEY`, and raises
@@ -250,9 +292,11 @@ it is countable, and a later import fills it in without a rebuild:
 
 - `Bellevue 14507` U1–U4 — the shared `Bellevue 14507 Onboarding Sheets.xlsx` does not exist
   anywhere under the 4plex folder. Not a name mismatch; there is no onboarding sheet at all.
-- `Sammamish 5124` — the index has one listing, the workbook has two columns
-  (`Sammamish 5124-1`, `-2`). The name is a prefix of both, so `_match_column` refuses. The
-  fix belongs in the index (split the row), not in the matcher.
+- `Sammamish 5124` — **fixed in the index, 2026-09-27.** The row was split into
+  `Sammamish 5124-1` (Active) and `Sammamish 5124-2` (Inactive), so `_match_column` now
+  resolves `-1` to its own column and the Active filter leaves `-2` out. Re-importing the
+  property cleared the old empty `Sammamish 5124` row, as `load()` rebuilds its listings.
+  The one remaining empty-listing case is Bellevue 14507.
 
 Tab names on the real files are exactly `Summary`, `Owner`, `Property`. Owner rows are often
 sparse (name only, no email/phone) — that is the source data, not a parse failure. So is
@@ -307,7 +351,30 @@ without access.
   in detail. The ~112KB `Property Onboarding ...` generation now imports (Yacinde's 10 units,
   348 attrs) but its label set has not been audited — extend `config/sensitive_fields.yml` and
   `_LISTING_COLUMNS` rather than special-casing.
+  Auditing `Property Onboarding Belleve 15746.xlsx` and `Renton 18823 Property Onboarding.xlsx`
+  label-by-label (2026-09-27) found their label set otherwise identical to the common template,
+  with one addition: `Maintenance - Access - Guest Access Backup Code`, a door code that would
+  have been the first credential in `listing_attrs` as plaintext. Now in `sensitive_fields.yml`.
+  The Yacinde generation then produced a THIRD spelling of the same field,
+  `Maintenance - Access - Guest Backup Code` (no "Access"), found on the 2026-09-27 refresh —
+  also a live door code, also headed for plaintext. Both are now listed. Each new template
+  generation should be swept label-by-label before its first write; grep the parsed labels for
+  code/password/login/pin and check every hit is classified SECRET.
+  A low attr/secret count is not by itself a parse failure — `Sammamish 5124-1` legitimately
+  has 27/4 because the owner self-manages and most access/utility cells are blank. Compare
+  labels, not counts.
 - Yacinde's index rows have an empty `File` cell; they resolve only through the
   "exactly one `*onboarding*.xlsx` in the folder" fallback. A second sheet appearing in any of
   those folders makes it ambiguous and drops all 10 to empty rows.
+  The same fragility bit from the other direction on 2026-09-27: the B1-B4 folders had been
+  renamed on Drive (`Unit B1 - target live 8.20` -> `Unit B1 - live 8.20`), and with no `File`
+  cell to fall back on, all four resolved to `path=None`. **A re-import would have rebuilt them
+  as empty rows, dropping 137 attrs and 34 secrets, while printing `ok ... 0 failed`.** The
+  `<- N listing(s) with no workbook data` marker is the only warning, so for Yacinde always
+  diff per-listing attr/secret counts against the database before writing. `resolve_folder`
+  cannot bridge this: "target " sits mid-name, so it is neither an exact nor a prefix match.
+  Fixed in the index (four `Property.folder` cells), not in the matcher. Note `Unit B4` really
+  does have a double space before its dash.
+- `Unit F4` has an onboarding sheet on Drive but no index row, so it is deliberately not in the
+  database (asked and confirmed 2026-09-27). Same shape as `Sammamish 5124-2`.
 - Daily sync is explicitly not wanted — imports are run on demand.

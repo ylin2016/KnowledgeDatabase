@@ -99,3 +99,30 @@ def sensitive_keys() -> frozenset[str]:
 
 def is_sensitive(raw) -> bool:
     return label_key(raw) in sensitive_keys()
+
+
+# ---------------------------------------------------------------- aliases
+
+# Template generations spell the same field differently. Left = a spelling that
+# occurs in some workbook; right = the label everything is stored under.
+#
+# Only fold labels that are genuinely the SAME field. Verified across all 98
+# resolvable workbooks (2026-09-27): no workbook contains more than one of these
+# three spellings, so folding them cannot merge two distinct values.
+_LABEL_ALIASES: dict[str, str] = {
+    "maintenance - access - backup code":
+        "Maintenance - Access - Guest Access Backup Code",
+    "maintenance - access - guest backup code":
+        "Maintenance - Access - Guest Access Backup Code",
+}
+
+
+def canonical_label(raw) -> str:
+    """Normalized label, with per-generation spellings folded to one name.
+
+    Applied where a field is stored (parse_workbook._parse_listings) rather than
+    inside normalize_label/label_key, because discover.py runs label_key over the
+    INDEX's column headers and must not be affected.
+    """
+    norm = normalize_label(raw)
+    return _LABEL_ALIASES.get(norm.lower(), norm)

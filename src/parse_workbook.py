@@ -18,6 +18,7 @@ from pathlib import Path
 from xlsx import missing_strings, open_workbook, sheet_rows
 
 from fields import (
+    canonical_label,
     clean_value,
     is_sensitive,
     label_key,
@@ -172,9 +173,12 @@ def _parse_listings(ws) -> list[dict]:
         if not key or key == "field":
             continue
 
-        field = normalize_label(raw_label)
-        category, subcategory, label = split_label(raw_label)
-        sensitive = is_sensitive(raw_label)
+        # Stored under the canonical spelling: template generations name the same
+        # field differently (see fields._LABEL_ALIASES), and splitting one field
+        # across several labels breaks both search and get_secret.
+        field = canonical_label(raw_label)
+        category, subcategory, label = split_label(field)
+        sensitive = is_sensitive(raw_label) or is_sensitive(field)
         promoted = _LISTING_COLUMNS.get(key)
 
         for c in range(1, ncols + 1):
