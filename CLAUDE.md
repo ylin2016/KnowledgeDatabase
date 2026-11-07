@@ -50,6 +50,7 @@ Plain `python src/...` picks up the system interpreter, which has no psycopg —
 ./kdb parse_workbook.py X.xlsx                 # parse one workbook, write nothing
 
 ./kdb import_onboarding.py --dry-run           # parse everything, write nothing
+./kdb diff_sheets.py > out/diff_sheets_<date>.txt  # every value, sheet vs both DBs; writes nothing
 ./kdb import_onboarding.py                     # -> DATABASE_URL
 ./kdb import_onboarding.py --db WEATHERED_URL  # the second project
 ./kdb import_onboarding.py --property OSBR     # one property
@@ -266,6 +267,35 @@ on trust.
 - `pgcrypto`, `pg_trgm` installed. `vector` 0.8.6 is available but unused — semantic search
   over `listing_attrs` would not require moving off Neon.
 - Deleting a property cascades to listings, attrs, and secrets.
+
+## Checking for changes — `diff_sheets.py`
+
+Builds every Active property exactly as the import would, then compares it value by value
+with BOTH databases (property fields, owners, listing columns, attrs, secrets). Secrets are
+compared decrypted and reported only as `•••`. It writes nothing to the database; each run
+also writes `out/diff_sheets_<datetime>.csv`, timestamped so a rescan after an import does
+not overwrite the record of what that import changed. It ends with a NEEDS UPDATE list and
+the exact `import_onboarding.py` command.
+
+Change classes, and why they are kept apart:
+
+- **real**: someone edited the sheet. Import.
+- **format**: only a number's spelling moved (`1234.0` -> `1234`). The database copy is the
+  wrong one, and a door code that reads `1234.0` is wrong to whoever looks it up, so import.
+- **owner shared**: owners are ONE row per name+email, shared by every property they own.
+  When two workbooks spell the same phone differently, the last import wins and the rest
+  differ for ever. Not a reason to import; never "fix" it by re-importing in a loop.
+- **blocked**: `WOULD BLANK` (a populated listing would be rebuilt empty) and
+  `OWNER PHONE BAD` (the phone cell is numeric and reads `7.32237617E9`; importing writes
+  that into the shared owner row, breaking that owner's phone on every property).
+
+2026-11-06 scan: 21 properties re-imported into both projects (18 real, 3 format-only:
+Elektra access codes/lock type, Seattle 7434 locks + cameras, Seattle 1623, Shoreline,
+Hoodsport, Lynnwood cleaning cost, etc.). Rescan clean apart from blocked `Beachwood`
+(Jing Zhou's phone) and `Redmond 18641` (two owner phones, already stored as `2.13…E9`)
+— fix those cells to text in the workbook, then import. Before/after reports are in
+`out/diff_sheets_2026-11-06_*`. Totals after: 69 / 89 / 111 / 3908 attrs / 1106 secrets,
+identical in both.
 
 ## Loaded (2026-09-27)
 
