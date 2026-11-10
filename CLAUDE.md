@@ -253,19 +253,20 @@ table access would drag `listing_secrets` into questions that never asked for a 
 `get_secret` needs `SECRETS_KEY`, so the server inherits `.env` through `src/db.py` and the
 key never reaches the client. `KDB_MCP_DB` picks the target (default `DATABASE_URL`).
 
-**Credential decryption is OFF (decided 2026-11-09).** Codes stay encrypted in the database,
-but nothing reads them back through Claude:
+**Credentials: encrypted at rest, decrypted only through the connector (decided 2026-11-09).**
+The user wants codes encrypted in storage AND readable when they ask through the Claude
+connector — never plaintext in `listing_attrs`, which would expose them to `search`, `sql` and
+every backup.
 
 - `get_secret` is registered only when `KDB_MCP_SECRETS=1`; unset or anything else leaves it
-  out, in both `mcp_server.py` and `http_server.py`. `.mcp.json` sets `0`. On the remote
-  server this switch sits ahead of the per-token `secrets` flag, so no token can decrypt.
-- `deploy_mcp.sh` no longer uploads `SECRETS_KEY` and removes it from Vercel if present; its
-  first token is created with `secrets: false`. Without the key the host cannot decrypt.
-- Claude does not decrypt a credential on request through any other path either (a script
-  calling `secrets_io.get_secret`) — point to Guesty or the sheet. `SECRETS_KEY` stays in the
-  local `.env` only because the import must encrypt and `diff_sheets.py` compares decrypted
-  values; it prints `•••`, never a value.
-- Turning it back on is the user's call, made explicitly — not inferred from a request for a code.
+  out, in both `mcp_server.py` and `http_server.py`. The default is off so a new setup starts
+  locked; the user's configs turn it on: `.mcp.json` sets `1`, and `deploy_mcp.sh` uploads
+  `SECRETS_KEY` and sets `KDB_MCP_SECRETS=1` on Vercel.
+- Remote: once on, each token's `secrets` flag still decides who may decrypt. The first token
+  (`yi`, the user's) is created with `secrets: true`; give everyone else `false` unless they
+  need door codes.
+- Still one credential per call (listing + label), and `diff_sheets.py` compares decrypted
+  values but prints only `•••`.
 
 The read-only guard on `sql` is belt and braces — a regex for SELECT/WITH, a rejection of a
 second statement, and `set transaction read only` so a write fails at the server rather than

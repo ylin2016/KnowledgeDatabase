@@ -5,7 +5,7 @@
       "args": ["src/mcp_server.py"],
       "env": {
         "KDB_MCP_DB": "DATABASE_URL",
-        "KDB_MCP_SECRETS": "0"
+        "KDB_MCP_SECRETS": "1"
       }
     }
   }

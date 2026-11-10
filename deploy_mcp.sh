@@ -19,7 +19,7 @@ if [ ! -f "$TOKENS" ]; then
   python3 - "$TOKENS" <<'PY'
 import json, secrets, sys
 path = sys.argv[1]
-data = {secrets.token_hex(24): {"name": "yi", "secrets": False}}
+data = {secrets.token_hex(24): {"name": "yi", "secrets": True}}
 with open(path, "w") as f:
     json.dump(data, f, indent=2)
 PY
@@ -34,10 +34,13 @@ set -a; . ./.env; set +a
 
 echo "==> 3/4 上传配置到 Vercel"
 vercel link
-# 不上传 SECRETS_KEY：服务器不解密密码（2026-11-09 起）。已上传过的一并删除。
-vercel env rm DATABASE_URL production --yes >/dev/null 2>&1 || true
-printf '%s' "$DATABASE_URL" | vercel env add DATABASE_URL production
-vercel env rm SECRETS_KEY production --yes >/dev/null 2>&1 || true
+# 解密开关：KDB_MCP_SECRETS=1 才注册 get_secret；之后按令牌的 secrets 标志决定谁能解密。
+for VAR in DATABASE_URL SECRETS_KEY; do
+  vercel env rm "$VAR" production --yes >/dev/null 2>&1 || true
+  printf '%s' "${!VAR}" | vercel env add "$VAR" production
+done
+vercel env rm KDB_MCP_SECRETS production --yes >/dev/null 2>&1 || true
+printf '1' | vercel env add KDB_MCP_SECRETS production
 vercel env rm KDB_TOKENS production --yes >/dev/null 2>&1 || true
 tr -d '\n' < "$TOKENS" | vercel env add KDB_TOKENS production
 
