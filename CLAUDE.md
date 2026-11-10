@@ -251,8 +251,21 @@ table access would drag `listing_secrets` into questions that never asked for a 
 | `sql` | a single SELECT/WITH in a read-only transaction |
 
 `get_secret` needs `SECRETS_KEY`, so the server inherits `.env` through `src/db.py` and the
-key never reaches the client. `KDB_MCP_SECRETS=0` leaves that tool unregistered; `KDB_MCP_DB`
-picks the target (default `DATABASE_URL`).
+key never reaches the client. `KDB_MCP_DB` picks the target (default `DATABASE_URL`).
+
+**Credential decryption is OFF (decided 2026-11-09).** Codes stay encrypted in the database,
+but nothing reads them back through Claude:
+
+- `get_secret` is registered only when `KDB_MCP_SECRETS=1`; unset or anything else leaves it
+  out, in both `mcp_server.py` and `http_server.py`. `.mcp.json` sets `0`. On the remote
+  server this switch sits ahead of the per-token `secrets` flag, so no token can decrypt.
+- `deploy_mcp.sh` no longer uploads `SECRETS_KEY` and removes it from Vercel if present; its
+  first token is created with `secrets: false`. Without the key the host cannot decrypt.
+- Claude does not decrypt a credential on request through any other path either (a script
+  calling `secrets_io.get_secret`) — point to Guesty or the sheet. `SECRETS_KEY` stays in the
+  local `.env` only because the import must encrypt and `diff_sheets.py` compares decrypted
+  values; it prints `•••`, never a value.
+- Turning it back on is the user's call, made explicitly — not inferred from a request for a code.
 
 The read-only guard on `sql` is belt and braces — a regex for SELECT/WITH, a rejection of a
 second statement, and `set transaction read only` so a write fails at the server rather than
@@ -282,6 +295,12 @@ Change classes, and why they are kept apart:
 - **real**: someone edited the sheet. Import.
 - **format**: only a number's spelling moved (`1234.0` -> `1234`). The database copy is the
   wrong one, and a door code that reads `1234.0` is wrong to whoever looks it up, so import.
+  Since 2026-11-08 `fields.clean_value` turns a whole-number float cell into an int before
+  stringifying, so a code reads `1234` whether the cell was saved as text or as a number.
+  Before that, the stored spelling flipped with whoever last saved the sheet (seen on
+  2026-11-08: edits after the 11-06 import turned text cells back into number cells).
+- **owner repair**: the stored phone is the broken one (`7.3…E9`, `2489349770.0`) and the
+  sheet now reads correctly. Import.
 - **owner shared**: owners are ONE row per name+email, shared by every property they own.
   When two workbooks spell the same phone differently, the last import wins and the rest
   differ for ever. Not a reason to import; never "fix" it by re-importing in a loop.
@@ -296,6 +315,27 @@ Hoodsport, Lynnwood cleaning cost, etc.). Rescan clean apart from blocked `Beach
 — fix those cells to text in the workbook, then import. Before/after reports are in
 `out/diff_sheets_2026-11-06_*`. Totals after: 69 / 89 / 111 / 3908 attrs / 1106 secrets,
 identical in both.
+
+2026-11-08: `Redmond 18641` phones fixed in the sheet and imported. After the
+`clean_value` fix, imported `Bellevue 15746`, `Lynnwood 17506` (cleaning cost and utility
+accounts back in the sheet), `Seattle 10057`, `Seattle 7434`, `Shoreline 15510` (utility
+accounts) and `Yacinde` (E3 codes) into both. No owner phone is stored in E-notation.
+Still blocked: `Beachwood` — Jing Zhou's phone is numeric in units 1, 2 and 3 (units 4–10
+do not list Jing Zhou). Totals: 69 / 89 / 111 / 3908 attrs / 1111 secrets, both projects.
+
+2026-11-09: `Seattle 906` showed `WOULD BLANK` — its Drive folder was renamed `… 101st St …` ->
+`… 101 St …`. Fixed in the index (PropertyFolder A113/A114, plus Cohost_Property_PPTs B97/B98
+and the folder part of the D97/D98 pptx paths) by rewriting only the two sheet XMLs; the index
+has no sharedStrings.xml — its text is inline, so `edit_label.rename()` does not apply to it.
+Rescan then matched both databases with no import needed. Same failure class as Yacinde B1-B4:
+a folder rename on Drive is invisible until a scan says WOULD BLANK.
+
+2026-11-09: `Beachwood` unblocked. Jing Zhou's phone in units 1, 2, 3 was a TEXT cell
+(Owner!C6) holding the literal string `7.32237617E9`, not a number — `clean_value` cannot
+repair that. Rewrote its one shared string (referenced by that cell only) to
+`(732) 237-6170`, via zip surgery on `sharedStrings.xml`. The database already held that
+spelling, so the rescan matched with no import. Every property is now current against its
+sheet in both projects; the only remaining differences are owner-spelling drift.
 
 ## Loaded (2026-09-27)
 

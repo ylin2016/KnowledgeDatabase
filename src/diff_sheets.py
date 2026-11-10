@@ -155,6 +155,11 @@ def _diff_property(entry: dict, parsed: dict, db: dict) -> list[tuple]:
                 # Importing writes this into the shared row, breaking the phone
                 # on every other property that owner has.
                 out.append(("OWNER PHONE BAD", "", f"{k[0]} {c}", old, new))
+            elif c == "phone" and old and new and old != new and (
+                    _SCI_RE.match(old) or _kind("", old, new) == "format"):
+                # The stored phone is the broken one (7.3E9 or 2489349770.0);
+                # the sheet now reads correctly.
+                out.append(("owner repair", "", f"{k[0]} {c}", old, new))
             elif old != new and new is not None:
                 out.append(("owner shared", "", f"{k[0]} {c}", old, new))
 

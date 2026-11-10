@@ -17,6 +17,8 @@ access logs, so treat a URL-form token as the weaker of the two.
 
     KDB_MCP_DB   .env key naming the target database (default DATABASE_URL)
     KDB_TOKENS   JSON: {"<token>": {"name": "Marcus", "secrets": false}, ...}
+    KDB_MCP_SECRETS  "1" registers get_secret at all (default off); a token's
+                     "secrets" flag only matters once it is on
 """
 
 from __future__ import annotations
@@ -76,7 +78,10 @@ def _guard() -> str | None:
     )
 
 
-mcp = build_server(DB, secrets_enabled=True, secrets_guard=_guard)
+# Server-wide switch first: with it off, no token can decrypt, whatever its flag.
+SECRETS_ENABLED = os.environ.get("KDB_MCP_SECRETS", "0") == "1"
+
+mcp = build_server(DB, secrets_enabled=SECRETS_ENABLED, secrets_guard=_guard)
 
 # stateless: no session is carried between requests, so any instance can serve
 # any call. json_response: plain JSON bodies rather than an SSE stream, which

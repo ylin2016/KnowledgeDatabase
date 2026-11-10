@@ -5,7 +5,8 @@ for wiring. The tools themselves live in `kdb_tools.py`, shared with the remote
 HTTP server in `http_server.py` so there is one definition of each.
 
     KDB_MCP_DB       .env key naming the target database (default DATABASE_URL)
-    KDB_MCP_SECRETS  "0" leaves the decryption tool unregistered entirely
+    KDB_MCP_SECRETS  "1" registers the decryption tool; anything else (the
+                     default since 2026-11-09) leaves it unregistered
 """
 
 from __future__ import annotations
@@ -20,7 +21,8 @@ from db import describe, get_dsn
 from kdb_tools import build_server
 
 DB = os.environ.get("KDB_MCP_DB", "DATABASE_URL")
-SECRETS_ENABLED = os.environ.get("KDB_MCP_SECRETS", "1") != "0"
+# Off unless asked for: credentials are not read back through Claude by default.
+SECRETS_ENABLED = os.environ.get("KDB_MCP_SECRETS", "0") == "1"
 
 mcp = build_server(DB, secrets_enabled=SECRETS_ENABLED)
 

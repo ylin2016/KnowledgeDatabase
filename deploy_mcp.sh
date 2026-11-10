@@ -19,7 +19,7 @@ if [ ! -f "$TOKENS" ]; then
   python3 - "$TOKENS" <<'PY'
 import json, secrets, sys
 path = sys.argv[1]
-data = {secrets.token_hex(24): {"name": "yi", "secrets": True}}
+data = {secrets.token_hex(24): {"name": "yi", "secrets": False}}
 with open(path, "w") as f:
     json.dump(data, f, indent=2)
 PY
@@ -34,10 +34,10 @@ set -a; . ./.env; set +a
 
 echo "==> 3/4 上传配置到 Vercel"
 vercel link
-for VAR in DATABASE_URL SECRETS_KEY; do
-  vercel env rm "$VAR" production --yes >/dev/null 2>&1 || true
-  printf '%s' "${!VAR}" | vercel env add "$VAR" production
-done
+# 不上传 SECRETS_KEY：服务器不解密密码（2026-11-09 起）。已上传过的一并删除。
+vercel env rm DATABASE_URL production --yes >/dev/null 2>&1 || true
+printf '%s' "$DATABASE_URL" | vercel env add DATABASE_URL production
+vercel env rm SECRETS_KEY production --yes >/dev/null 2>&1 || true
 vercel env rm KDB_TOKENS production --yes >/dev/null 2>&1 || true
 tr -d '\n' < "$TOKENS" | vercel env add KDB_TOKENS production
 

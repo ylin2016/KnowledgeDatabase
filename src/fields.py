@@ -51,6 +51,10 @@ def clean_value(raw) -> str | None:
     """Trim a cell; treat blanks and N/A-style placeholders as missing."""
     if raw is None:
         return None
+    # A door code saved as a number cell reads back as 1234.0; as a text cell,
+    # 1234. Whoever last edited the sheet must not decide which one is stored.
+    if isinstance(raw, float) and raw.is_integer():
+        raw = int(raw)
     s = str(raw).replace("\xa0", " ").strip()
     s = re.sub(r"[ \t]+", " ", s)
     s = re.sub(r"\n{3,}", "\n\n", s)
